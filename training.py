@@ -1,6 +1,5 @@
 import gym
 from RL_Model import DQN
-import matplotlib.pyplot as plt
 import tensorflow as tf
 import numpy as np
 
