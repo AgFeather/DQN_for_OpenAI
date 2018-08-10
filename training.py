@@ -11,8 +11,8 @@ observation_space = env.observation_space
 observation_space_high = env.observation_space.high
 observation_space_low = env.observation_space.low
 
-print(action_space)
-print(observation_space)
+# print(action_space)
+# print(observation_space)
 
 env.seed(21)
 MEMORY_SIZE = 10000
@@ -29,7 +29,7 @@ def train(RL):
     total_steps = 0
     steps = []
     episodes = []
-    for i_episode in range(30):
+    for i_episode in range(10):
         observation = env.reset() #获取环境初始state对应的observation
         while True:
             if total_steps % 10 == 0: env.render() #刷新环境并显示
