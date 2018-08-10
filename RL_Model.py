@@ -132,28 +132,26 @@ class DQN(object):
     def learn(self):
         if self.global_step_counter % self.target_net_update_period == 0:
             self.sess.run(self.update_target_net)
-        #    print('\ntarget_params_replaced')
 
         tree_idx, batch_memory, memory_weights = self.memory.sample(self.batch_size)
 
         feed = {self.input_state_: batch_memory[:, -self.n_features:],
                            self.input_state: batch_memory[:, :self.n_features]}
-        q_next, q_eval = self.sess.run([self.q_next, self.q_eval], feed_dict=feed)
+        q_next, q_eval = self.sess.run([self.q_next, self.q_eval], feed_dict=feed) # 正向传播Q_Net和Target_Net
 
+        # 只计算被选择的ation对应的loss，其他action产生的loss记为0
         output_target = q_eval.copy()
         batch_index = np.arange(self.batch_size, dtype=np.int32)
         eval_act_index = batch_memory[:, self.n_features].astype(int)
         reward = batch_memory[:, self.n_features + 1]
-
         output_target[batch_index, eval_act_index] = reward + self.gamma * np.max(q_next, axis=1)
 
-
+        # 获得本次训练的loss，进而将其更新到SumTree中
+        feed = {self.input_state: batch_memory[:, :self.n_features],
+                    self.output_target: output_target, self.input_weights: memory_weights}
         _, abs_errors, self.cost = self.sess.run([self._train_op, self.abs_errors, self.loss],
-                                     feed_dict={self.input_state: batch_memory[:, :self.n_features],
-                                                self.output_target: output_target,
-                                                self.input_weights: memory_weights})
+                                     feed_dict=feed)
         self.memory.batch_update(tree_idx, abs_errors)     # 将训练过的记忆数据更新到SumTree中
-
 
         self.cost_his.append(self.cost)
 
