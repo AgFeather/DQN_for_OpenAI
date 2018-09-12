@@ -68,7 +68,6 @@ class DQN(object):
     def build_net(self):
         '''
         创建两个神经网络
-        :return:
         '''
         self.input_state = tf.placeholder(tf.float32, [None, self.n_features], name='input_state')
         self.output_target = tf.placeholder(tf.float32, [None, self.n_actions], name='output_target')
@@ -79,12 +78,10 @@ class DQN(object):
             c_names = ['q_net_params', tf.GraphKeys.GLOBAL_VARIABLES]
             self.q_eval = self.build_layers(self.input_state, c_names, True)
         # 构建Q_Net的训练loss
-
         with tf.variable_scope('loss'):
             self.abs_errors = tf.reduce_sum(tf.abs(self.output_target - self.q_eval), axis=1)
             self.loss = tf.reduce_mean(self.input_weights * tf.squared_difference(self.output_target, self.q_eval))
         # 构建Q_Net 的训练操作
-
         with tf.variable_scope('train'):
             self._train_op = tf.train.RMSPropOptimizer(self.lr).minimize(self.loss)
 
@@ -96,22 +93,49 @@ class DQN(object):
 
 
     def build_layers(self, s, c_names, trainable):
-        '''构建一个双隐藏层神经网络'''
-        w_initializer, b_initializer = tf.random_normal_initializer(0., 0.3), tf.constant_initializer(0.1)
-        with tf.variable_scope('l1'):
-            w1 = tf.get_variable('w1', [self.n_features, hidden_size], initializer=w_initializer,
-                                 collections=c_names, trainable=trainable)
-            b1 = tf.get_variable('b1', [1, hidden_size], initializer=b_initializer,
-                                 collections=c_names, trainable=trainable)
-            l1 = tf.nn.relu(tf.matmul(s, w1) + b1)
+        '''
+        构建一个包含两个卷积层，两个最大池化层，两个全连接层的CNN
+        '''
+        # todo: 修改weights和biases的形状大小
+        w_initializer = tf.random_normal_initializer(0., 0.3)
+        b_initializer = tf.constant_initializer(0.1)
+        s = tf.expand_dims(s, -1)
+        weights = {
+            'conv1':tf.get_variable('conv_w1', shape=[4,1,3],
+                                    initializer=w_initializer,collections=c_names,trainable=trainable),
+            'conv2':tf.get_variable('conv_w2', shape=[4,3,6],
+                                    initializer=w_initializer,collections=c_names,trainable=trainable),
+            'h1':tf.get_variable('h_w1',shape=hidden_size,
+                                 initializer=w_initializer, collections=c_names,trainable=trainable),
+            'h2':tf.get_variable('h_w2',shape=hidden_size,
+                                 initializer=w_initializer, collections=c_names,trainable=trainable)
+        }
+        biases = {
+            'conv1':tf.get_variable('conv_b1', shape=self.n_features,
+                                    initializer=b_initializer,collections=c_names,trainable=trainable),
+            'conv2':tf.get_variable('conv_b2', shape=self.n_features,
+                                    initializer=b_initializer,collections=c_names,trainable=trainable),
+            'h1':tf.get_variable('h_b1',shape=hidden_size,
+                                 initializer=b_initializer, collections=c_names,trainable=trainable),
+            'h2':tf.get_variable('h_b2',shape=hidden_size,
+                                 initializer=b_initializer, collections=c_names,trainable=trainable)
+        }
+        with tf.variable_scope('conv_1'):
+            conv1_layer = tf.nn.conv1d(s, weights['conv1'],strides=2,padding='SAME')
+            pool1_layer = tf.nn.max_pool(conv1_layer, ksize=[1,4])
+            relu1_layer = tf.nn.relu(pool1_layer) + biases['conv1']
 
-        with tf.variable_scope('l2'):
-            w2 = tf.get_variable('w2', [hidden_size, self.n_actions], initializer=w_initializer,
-                                 collections=c_names, trainable=trainable)
-            b2 = tf.get_variable('b2', [1, self.n_actions], initializer=b_initializer,
-                                 collections=c_names, trainable=trainable)
-            out = tf.matmul(l1, w2) + b2
-        return out
+        with tf.variable_scope('conv_2'):
+            conv2_layer = tf.nn.conv1d(relu1_layer, weights['conv1'], strides=2, padding='SAME')
+            pool2_layer = tf.nn.max_pool(conv2_layer, ksize=[1, 4])
+            relu2_layer = tf.nn.relu(pool2_layer) + biases['conv1']
+        with tf.variable_scope('hidden_1'):
+            padding_layer = tf.reshape(relu2_layer, shape=[self.batch_size, -1])
+            h1_layer = tf.matmul(padding_layer, weights['h1']) + biases['h1']
+            h1_layer = tf.nn.relu(h1_layer)
+        with tf.variable_scope('hidden_2'):
+            out = tf.matmul(h1_layer, weights['h2']) + biases['h2']
+            return out
 
 
     # 将从环境中获得的记忆数据存储到DQN的记忆库中

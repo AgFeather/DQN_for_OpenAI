@@ -42,7 +42,7 @@ class DQN2(object):
 
         self.global_step_counter = 0
 
-        self._build_net()
+        self.build_net()
 
         t_params = tf.get_collection('target_net_params')
         q_params = tf.get_collection('q_net_params')
@@ -64,26 +64,24 @@ class DQN2(object):
 
         self.cost_his = []
 
-    def _build_net(self):
+    def build_net(self):
         '''
         创建两个神经网络
         :return:
         '''
-        self.input_state = tf.placeholder(
-            tf.float32, self.image_shape, name='input_state')
+        self.input_state = tf.placeholder(tf.float32, self.image_shape, name='input_state')
         self.output_target = tf.placeholder(tf.float32, [None, self.n_actions], name='output_target')
         self.input_weights = tf.placeholder(tf.float32, [None, 1], name='IS_weights') # 每个训练数据在计算loss时的权重
 
         # 构建Q_Net
         with tf.variable_scope('q_net'):
-            c_names, n_l1, w_initializer, b_initializer = \
-                ['q_net_params', tf.GraphKeys.GLOBAL_VARIABLES], 20, \
-                tf.random_normal_initializer(0., 0.3), tf.constant_initializer(0.1)
-            self.q_eval = self.build_layers(self.input_state, c_names, n_l1, w_initializer, b_initializer, True)
+            c_names = ['q_net_params', tf.GraphKeys.GLOBAL_VARIABLES]
+            self.q_eval = self.build_layers(self.input_state, c_names, True)
         # 构建Q_Net的训练loss
         with tf.variable_scope('loss'):
             self.abs_errors = tf.reduce_sum(tf.abs(self.output_target - self.q_eval), axis=1)
-            self.loss = tf.reduce_mean(self.input_weights * tf.squared_difference(self.output_target, self.q_eval))
+            self.loss = tf.reduce_mean(
+                self.input_weights * tf.squared_difference(self.output_target, self.q_eval))
         # 构建Q_Net 的训练操作
         with tf.variable_scope('train'):
             self._train_op = tf.train.RMSPropOptimizer(self.lr).minimize(self.loss)
@@ -93,13 +91,16 @@ class DQN2(object):
             tf.float32, self.image_shape, name='s_')
         with tf.variable_scope('target_net'): # 构建Target_Net
             c_names = ['target_net_params', tf.GraphKeys.GLOBAL_VARIABLES]
-            self.q_next = self.build_layers(self.input_state_, c_names, n_l1, w_initializer, b_initializer, False)
+            self.q_next = self.build_layers(self.input_state_, c_names, False)
 
 
-    def build_layers(self, s, c_names, w_initializer, b_initializer, trainable):
+    def build_layers(self, s, c_names, trainable):
         '''
         构建一个包含两个卷积层，两个最大池化层，两个全连接层的CNN
         '''
+        # TODO: 修改每个weights的大小
+        w_initializer = tf.random_normal_initializer(0., 0.3)
+        b_initializer = tf.constant_initializer(0.1)
         weights = {
             'conv1':tf.get_variable('conv_w1', shape=[4,4,3,6],
                                     initializer=w_initializer,collections=c_names,trainable=trainable),
@@ -136,6 +137,7 @@ class DQN2(object):
         with tf.variable_scope('hidden_2'):
             out = tf.matmul(h1_layer, weights['h2']) + biases['h2']
             return out
+
 
 
     # 将从环境中获得的记忆数据存储到DQN的记忆库中
