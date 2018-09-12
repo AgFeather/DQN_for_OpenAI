@@ -5,20 +5,18 @@ import tensorflow as tf
 from SumTree import  SumTree
 from Memory import Memory
 
-np.random.seed(1)
-tf.set_random_seed(1)
+
+hidden_size = 64
 
 
-
-
-class DQN(object):
+class DQN2(object):
     '''
-    DQN结构，输入为每一时刻machine的ram值
+    DQN结构，该DQN输入数据为大小为（210, 160, 3)的图片，使用CNN结构
     '''
     def __init__(
             self,
-            n_actions, # 动作数量
-            n_features, # 每个state所有observation的数量
+            n_actions, # 动作数量 9
+            image_shape, # 输入image的大小（210， 160， 3）
             learning_rate=0.005,
             reward_decay=0.9, # gamma，奖励衰减值
             e_greedy=0.9, # 贪婪值，用来决定是使用贪婪模式还是随机模式
@@ -30,7 +28,7 @@ class DQN(object):
             prioritized=True, # 是否使用优先记忆
             sess=None,):
         self.n_actions = n_actions
-        self.n_features = n_features
+        self.image_shape = image_shape.insert(0, None)
         self.lr = learning_rate
         self.gamma = reward_decay
         self.epsilon_max = e_greedy
@@ -53,7 +51,7 @@ class DQN(object):
         if self.prioritized: # 使用SumTree
             self.memory = Memory(capacity=memory_size) # 构建一个容量为memory size的记忆库
         else:  # 不使用优先级记忆策略，用一个numpy数组表示记忆
-            self.memory = np.zeros((self.memory_size, n_features*2+2))
+            self.memory = np.zeros((self.memory_size, image_shape*2+2))
 
         if sess is None:
             self.sess = tf.Session()
@@ -71,7 +69,8 @@ class DQN(object):
         创建两个神经网络
         :return:
         '''
-        self.input_state = tf.placeholder(tf.float32, [None, self.n_features], name='input_state')
+        self.input_state = tf.placeholder(
+            tf.float32, self.image_shape, name='input_state')
         self.output_target = tf.placeholder(tf.float32, [None, self.n_actions], name='output_target')
         self.input_weights = tf.placeholder(tf.float32, [None, 1], name='IS_weights') # 每个训练数据在计算loss时的权重
 
@@ -90,28 +89,53 @@ class DQN(object):
             self._train_op = tf.train.RMSPropOptimizer(self.lr).minimize(self.loss)
 
         # 初始化并构建Target_Net
-        self.input_state_ = tf.placeholder(tf.float32, [None, self.n_features], name='s_')
+        self.input_state_ = tf.placeholder(
+            tf.float32, self.image_shape, name='s_')
         with tf.variable_scope('target_net'): # 构建Target_Net
             c_names = ['target_net_params', tf.GraphKeys.GLOBAL_VARIABLES]
             self.q_next = self.build_layers(self.input_state_, c_names, n_l1, w_initializer, b_initializer, False)
 
 
-    def build_layers(self, s, c_names, n_l1, w_initializer, b_initializer, trainable):
-        '''构建一个双隐藏层神经网络'''
-        with tf.variable_scope('l1'):
-            w1 = tf.get_variable('w1', [self.n_features, n_l1], initializer=w_initializer,
-                                 collections=c_names, trainable=trainable)
-            b1 = tf.get_variable('b1', [1, n_l1], initializer=b_initializer,
-                                 collections=c_names, trainable=trainable)
-            l1 = tf.nn.relu(tf.matmul(s, w1) + b1)
+    def build_layers(self, s, c_names, w_initializer, b_initializer, trainable):
+        '''
+        构建一个包含两个卷积层，两个最大池化层，两个全连接层的CNN
+        '''
+        weights = {
+            'conv1':tf.get_variable('conv_w1', shape=[4,4,3,6],
+                                    initializer=w_initializer,collections=c_names,trainable=trainable),
+            'conv2':tf.get_variable('conv_w2', shape=[4,4,6,12],
+                                    initializer=w_initializer,collections=c_names,trainable=trainable),
+            'h1':tf.get_variable('h_w1',shape=hidden_size,
+                                 initializer=w_initializer, collections=c_names,trainable=trainable),
+            'h2':tf.get_variable('h_w2',shape=hidden_size,
+                                 initializer=w_initializer, collections=c_names,trainable=trainable)
+        }
+        biases = {
+            'conv1':tf.get_variable('conv_b1', shape=self.image_shape,
+                                    initializer=b_initializer,collections=c_names,trainable=trainable),
+            'conv2':tf.get_variable('conv_b2', shape=self.image_shape,
+                                    initializer=b_initializer,collections=c_names,trainable=trainable),
+            'h1':tf.get_variable('h_b1',shape=hidden_size,
+                                 initializer=b_initializer, collections=c_names,trainable=trainable),
+            'h2':tf.get_variable('h_b2',shape=hidden_size,
+                                 initializer=b_initializer, collections=c_names,trainable=trainable)
+        }
+        with tf.variable_scope('conv_1'):
+            conv1_layer = tf.nn.conv2d(s, weights['conv1'],strides=[1,1,1,1],padding='SAME')
+            pool1_layer = tf.nn.max_pool(conv1_layer, ksize=[2,2])
+            relu1_layer = tf.nn.relu(pool1_layer) + biases['conv1']
 
-        with tf.variable_scope('l2'):
-            w2 = tf.get_variable('w2', [n_l1, self.n_actions], initializer=w_initializer,
-                                 collections=c_names, trainable=trainable)
-            b2 = tf.get_variable('b2', [1, self.n_actions], initializer=b_initializer,
-                                 collections=c_names, trainable=trainable)
-            out = tf.matmul(l1, w2) + b2
-        return out
+        with tf.variable_scope('conv_2'):
+            conv2_layer = tf.nn.conv2d(relu1_layer, weights['conv1'], strides=[1, 1, 1, 1], padding='SAME')
+            pool2_layer = tf.nn.max_pool(conv2_layer, ksize=[2, 2])
+            relu2_layer = tf.nn.relu(pool2_layer) + biases['conv1']
+        with tf.variable_scope('hidden_1'):
+            padding_layer = tf.reshape(relu2_layer, shape=[self.batch_size, -1])
+            h1_layer = tf.matmul(padding_layer, weights['h1']) + biases['h1']
+            h1_layer = tf.nn.relu(h1_layer)
+        with tf.variable_scope('hidden_2'):
+            out = tf.matmul(h1_layer, weights['h2']) + biases['h2']
+            return out
 
 
     # 将从环境中获得的记忆数据存储到DQN的记忆库中
@@ -135,19 +159,19 @@ class DQN(object):
 
         tree_idx, batch_memory, memory_weights = self.memory.sample(self.batch_size)
 
-        feed = {self.input_state_: batch_memory[:, -self.n_features:],
-                           self.input_state: batch_memory[:, :self.n_features]}
+        feed = {self.input_state_: batch_memory[:, -self.image_shape:],
+                           self.input_state: batch_memory[:, :self.image_shape]}
         q_next, q_eval = self.sess.run([self.q_next, self.q_eval], feed_dict=feed) # 正向传播Q_Net和Target_Net
 
         # 只计算被选择的ation对应的loss，其他action产生的loss记为0
         output_target = q_eval.copy()
         batch_index = np.arange(self.batch_size, dtype=np.int32)
-        eval_act_index = batch_memory[:, self.n_features].astype(int)
-        reward = batch_memory[:, self.n_features + 1]
+        eval_act_index = batch_memory[:, self.image_shape].astype(int)
+        reward = batch_memory[:, self.image_shape + 1]
         output_target[batch_index, eval_act_index] = reward + self.gamma * np.max(q_next, axis=1)
 
         # 获得本次训练的loss，进而将其更新到SumTree中
-        feed = {self.input_state: batch_memory[:, :self.n_features],
+        feed = {self.input_state: batch_memory[:, :self.image_shape],
                     self.output_target: output_target, self.input_weights: memory_weights}
         _, abs_errors, self.cost = self.sess.run([self._train_op, self.abs_errors, self.loss],
                                      feed_dict=feed)
@@ -157,9 +181,3 @@ class DQN(object):
 
         self.epsilon = self.epsilon + self.epsilon_increment if self.epsilon < self.epsilon_max else self.epsilon_max
         self.global_step_counter += 1
-
-
-
-
-
-

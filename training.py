@@ -11,8 +11,8 @@ observation_space = env.observation_space
 observation_space_high = env.observation_space.high
 observation_space_low = env.observation_space.low
 
-# print(action_space)
-# print(observation_space)
+print(action_space) # 9
+print(observation_space.shape) #(210, 160, 3)
 
 env.seed(21)
 MEMORY_SIZE = 10000
