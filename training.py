@@ -3,7 +3,7 @@ from RL_Model import DQN
 import tensorflow as tf
 import numpy as np
 
-env = gym.make('Enduro-ram-v0') #导入环境
+env = gym.make('Enduro-ram-v0') #导入环境，使用每个state的ram状态输入，shape=128
 
 env = env.unwrapped
 action_space = env.action_space
@@ -13,6 +13,10 @@ observation_space_low = env.observation_space.low
 
 print(action_space) # 9
 print(observation_space.shape) #(210, 160, 3)
+
+
+
+
 
 env.seed(21)
 MEMORY_SIZE = 10000
