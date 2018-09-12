@@ -4,6 +4,7 @@ import tensorflow as tf
 
 from Memory import Memory
 
+
 np.random.seed(1)
 tf.set_random_seed(1)
 

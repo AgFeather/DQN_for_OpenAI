@@ -12,13 +12,12 @@ observation_space_high = env.observation_space.high
 observation_space_low = env.observation_space.low
 
 print(action_space) # 9
-print(observation_space.shape) #(210, 160, 3)
+print(observation_space.shape) #(210, 160, 3) or (128)
 
 
 
+env.seed(2)
 
-
-env.seed(21)
 MEMORY_SIZE = 10000
 
 sess = tf.Session()
