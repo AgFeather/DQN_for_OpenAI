@@ -12,4 +12,10 @@ For 'Enduro-v0', I create a 2-dim CNN with 2 conv_layers, 2 max_pooling layers a
 ### DQN
 
 #### Tricks 
-I use Double DQN to solve 'overEstimated' problem and SumTree Memeory Structure to implement priority train sot that the model can be trained faster.  
+I use Double DQN to solve 'overEstimated' problem and SumTree Memeory Structure to implement priority train sot that the model can be trained faster.
+
+### How to use it.
+1. install openai gym
+2. download this source code 
+3. execute 'training.py'
+4. A playing game environment will be showed.  
