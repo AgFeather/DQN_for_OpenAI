@@ -32,26 +32,32 @@ def train(RL):
     total_steps = 0
     steps = []
     episodes = []
+    total_rewards = []
+
+
     for i_episode in range(10):
         observation = env.reset() #获取环境初始state对应的observation
+        episode_rewards = 0 # 本轮获得的所有reward，用来评价训练效果
+        episode_step = 0
         while True:
-            if total_steps % 10 == 0: env.render() #刷新环境并显示
+            episode_step += 1
+            if total_steps % 10 == 0: env.render() #每10步刷新一次环境并显示
 
             action = RL.choose_action(observation)
-
             observation_, reward, done, info = env.step(action) #获取下一个state
-
-            if done: reward = 10
-
+            if done:
+                reward = -10
+            episode_rewards += reward
             RL.store_transition(observation, action, reward, observation_)
 
             if total_steps > MEMORY_SIZE:
                 RL.learn()
 
             if done:
-                print('episode ', i_episode, ' finished')
-                steps.append(total_steps)
+                print('episode: ', i_episode, 'step: ', episode_step)
+                steps.append(episode_step)
                 episodes.append(i_episode)
+                total_rewards.append(episode_rewards)
                 break
 
             observation = observation_
